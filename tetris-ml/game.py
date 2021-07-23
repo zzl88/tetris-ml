@@ -46,7 +46,6 @@ class Tetrimino(Enum):
 
 
 class Key(Enum):
-    NOOP = 0
     UP = 1  # 1 0 0 0
     RIGHT = 2  # 0 1 0 0
     DOWN = 3  # 0 0 1 0
@@ -109,17 +108,13 @@ class Game(object):
 
         pygame.quit()
 
-    def train(self, agent, batch_size, epsilon=0.25):
+    def train(self, agent, batch_size, epsilon=0.2):
         if self._speed > 0:
             pygame.init()
         run = True
-        step = 0
         cur_state = self._get_state()
-        state = self._board.stack().tolist()
-        state.append(self._tick)
-
+        # LOGGER.info(cur_state)
         agent.reset_memory()
-        agent.remember(np.asarray(state), Key.DOWN.value, 4, cur_state, False)
 
         reward_acc = 0
 
@@ -131,6 +126,11 @@ class Game(object):
             cur_state = state
             reward_acc += reward
 
+        def _wait_ui():
+            if self._speed > 0:
+                pygame.time.wait(1000 // self._speed // 1)
+                self._update_ui()
+
         while run:
             if self._speed > 0:
                 quit = False
@@ -141,41 +141,31 @@ class Game(object):
                     break
 
             if random.uniform(0, 1) < epsilon:
-                action = random.randint(0, 4)
+                action = random.randint(0, 39)
+                LOGGER.debug(f'random action[{action}]')
             else:
                 action = agent.predict(cur_state)
+                LOGGER.debug(f'predict action[{action}]')
 
-            key = Key(action)
-            if key == Key.NOOP:
-                reward = 0
-            elif self._handle_move(key):
-                reward = 1
-            else:
-                reward = -1
+            rotate = action // 10
+            for i in range(rotate):
+                self._rotate()
+                _wait_ui()
 
-            _train(action, run, reward)
+            move = int(action % 10 - self._width / 2)
+            for i in range(abs(move)):
+                self._move_h(1 if move > 0 else -1)
+                _wait_ui()
 
-            if self._speed > 0:
-                pygame.time.wait(1000 // self._speed // 1)
-            step += 1
-            # agent can move 1 times in one tick
-            if step >= 1:
-                self._tick += 1
-                step = 0
+            while self._move_down():
+                _wait_ui()
 
-                if not self._move_down():
-                    score = self._score
-                    if not self._freeze():
-                        run = False
-                    _train(
-                        Key.NOOP.value, run, self._score -
-                        score if run else self._board.values.sum() -
-                        self._width * self._height)
-                else:
-                    _train(Key.NOOP.value, run, 0)
+            score = self._score
+            if not self._freeze():
+                run = False
+            _train(action, run, self._score - score + 4 if run else -100)
 
-            if self._speed > 0:
-                self._update_ui()
+            _wait_ui()
         if self._speed > 0:
             pygame.quit()
         agent.replay_memory()
@@ -331,6 +321,4 @@ class Game(object):
         LOGGER.debug(self._cur_pos)
         LOGGER.debug(self._cur)
         LOGGER.debug(df.shape)
-        arr = df.stack().tolist()
-        arr.append(self._tick)
-        return np.asarray(arr)
+        return df.to_numpy()
