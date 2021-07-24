@@ -1,4 +1,3 @@
-import datetime
 import logging
 
 import game
@@ -14,16 +13,23 @@ if __name__ == '__main__':
     logging.root.addHandler(handler)
     logging.root.setLevel(logging.ERROR)
 
-    # game.Game().run()
+    # play
+    # game.Game().play()
+
+    # train
     a = agent.Agent(gamma=0.9,
-                    layers=[200, 2000, 800, 3000, 40],
+                    output_size=5,
                     memory_size=5000,
                     learning_rate=0.0001)
-    a.load_weights('weights3')
+    try:
+        a.load_weights('weights3')
+    except:
+        pass
     for i in range(100000):
-        g = game.Game(speed=0)
+        g = game.Game(speed=50)
         reward_acc = g.train(a, batch_size=250)
         LOGGER.error(
             f'iteration[{i}] score[{g.score()}] reward_acc[{reward_acc}]')
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 100 == 0:
+            LOGGER.error(f'saving')
             a.save_weights('weights3')

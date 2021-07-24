@@ -76,7 +76,7 @@ class Game(object):
     def score(self):
         return self._score
 
-    def run(self):
+    def play(self):
         pygame.init()
         clock = pygame.time.Clock()
         run = True
@@ -141,35 +141,43 @@ class Game(object):
                     break
 
             if random.uniform(0, 1) < epsilon:
-                action = random.randint(0, 39)
+                action = random.randint(0, 4)
                 LOGGER.debug(f'random action[{action}]')
             else:
                 action = agent.predict(cur_state)
                 LOGGER.debug(f'predict action[{action}]')
 
-            rotate = action // 10
-            for i in range(rotate):
-                self._rotate()
-                _wait_ui()
+            if action == 4:
+                ok = True
+            else:
+                ok = self._handle_move(Key(action + 1))
+            # rotate = action // 10
+            # for i in range(rotate):
+            #     self._rotate()
+            #     _wait_ui()
+            #
+            # move = int(action % 10 - self._width / 2)
+            # for i in range(abs(move)):
+            #     self._move_h(1 if move > 0 else -1)
+            #     _wait_ui()
+            #
+            # while self._move_down():
+            #     _wait_ui()
+            _wait_ui()
 
-            move = int(action % 10 - self._width / 2)
-            for i in range(abs(move)):
-                self._move_h(1 if move > 0 else -1)
-                _wait_ui()
-
-            while self._move_down():
-                _wait_ui()
+            _train(action, run, 1 if ok else 0)
 
             score = self._score
-            if not self._freeze():
-                run = False
-            _train(action, run, self._score - score + 4 if run else -100)
+            if not self._move_down():
+                if not self._freeze():
+                    run = False
+            _train(Key.DOWN.value, run, self._score - score if run else -100)
 
             _wait_ui()
         if self._speed > 0:
             pygame.quit()
         agent.replay_memory()
-        # LOGGER.info(f'{self._board}')
+        LOGGER.info(f'{self._board}')
         return reward_acc
 
     def _handle_move(self, key):

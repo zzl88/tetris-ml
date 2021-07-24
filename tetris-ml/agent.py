@@ -15,13 +15,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Agent(torch.nn.Module):
-    def __init__(self, gamma: float, layers: List[int], memory_size,
+    def __init__(self, gamma: float, output_size: int, memory_size,
                  learning_rate):
         super(Agent, self).__init__()
         self._gamma = gamma
         self._memory = []
-        self._nodes = layers
-        self._network(layers)
+        self._network(output_size)
         self._optimizer = optim.Adam(super().parameters(),
                                      weight_decay=0,
                                      lr=learning_rate)
@@ -32,7 +31,7 @@ class Agent(torch.nn.Module):
     def save_weights(self, path):
         torch.save(super().state_dict(), path)
 
-    def _network(self, layers):
+    def _network(self, output_size):
         self._layer1 = nn.Sequential(nn.Conv2d(1, 64, kernel_size=2, stride=1),
                                      nn.ReLU())
         self._layer2 = nn.Sequential(
@@ -40,7 +39,7 @@ class Agent(torch.nn.Module):
         self._layer3 = nn.Sequential(
             nn.Conv2d(128, 64, kernel_size=3, stride=1), nn.ReLU())
         self._layer4 = nn.Sequential(nn.Linear(384, 512), nn.ReLU())
-        self._layer5 = nn.Linear(512, self._nodes[-1])
+        self._layer5 = nn.Linear(512, output_size)
 
     def forward(self, x):
         out = self._layer1(x)
@@ -53,8 +52,6 @@ class Agent(torch.nn.Module):
         return out
 
     def remember(self, old_state, action, reward, new_state, done):
-        # reward = torch.from_numpy(np.array([reward],
-        #                                    dtype=np.float32)).unsqueeze(0)
         self._memory.append((old_state, action, reward, new_state, done))
 
     def predict(self, old_state):
