@@ -9,9 +9,10 @@ from typing import List
 
 from torch import optim
 
-_DEVICE = 'cpu'
-
 LOGGER = logging.getLogger(__name__)
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# DEVICE = 'cpu'
 
 
 class Agent(torch.nn.Module):
@@ -56,10 +57,11 @@ class Agent(torch.nn.Module):
 
     def predict(self, old_state):
         with torch.no_grad():
-            old_state = torch.from_numpy(old_state).float()[None, None, ...]
+            old_state = torch.from_numpy(old_state).to(DEVICE).float()[None,
+                                                                       None,
+                                                                       ...]
             prediction = self(old_state)
             d = prediction.detach().cpu().numpy()[0]
-            # LOGGER.info(d)
             return np.argmax(d)
 
     def reset_memory(self):
@@ -67,15 +69,15 @@ class Agent(torch.nn.Module):
 
     def replay_memory(self):
         LOGGER.info(f'replaying size[{len(self._memory)}]')
-        for param in super().parameters():
-            LOGGER.debug(param)
         for old_state, action, reward, next_state, done in self._memory:
             self.train()
             torch.set_grad_enabled(True)
             target = reward
-            next_state_tensor = torch.from_numpy(next_state).float()[None,
-                                                                     None, ...]
-            state_tensor = torch.from_numpy(old_state).float()[None, None, ...]
+            next_state_tensor = torch.from_numpy(next_state).to(
+                DEVICE).float()[None, None, ...]
+            state_tensor = torch.from_numpy(old_state).to(DEVICE).float()[None,
+                                                                          None,
+                                                                          ...]
             if not done:
                 target = reward + self._gamma * torch.max(
                     self.forward(next_state_tensor)[0])

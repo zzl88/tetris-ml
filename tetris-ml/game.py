@@ -108,29 +108,47 @@ class Game(object):
 
         pygame.quit()
 
-    def train(self, agent, batch_size, epsilon=0.2):
+    def train(self, agent, batch_size, epsilon=0.15):
         if self._speed > 0:
             pygame.init()
         run = True
+        cur_board = self._board.copy()
         cur_state = self._get_state()
+        height, holes = self._board_stat(cur_board)
         # LOGGER.info(cur_state)
         agent.reset_memory()
 
         reward_acc = 0
+        train_size = 0
 
         def _train(action, run, reward):
-            nonlocal cur_state, reward_acc
+            nonlocal cur_state, reward_acc, train_size
             state = self._get_state()
+            LOGGER.info(f'reward[{reward}]')
+            train_size += 1
             # agent.train_short_memory(cur_state, action, reward, state, run)
             agent.remember(cur_state, action, reward, state, run)
             cur_state = state
             reward_acc += reward
+
+        def _calc_reward(cur_height, next_board):
+            nonlocal height, holes
+            next_height, next_holes = self._board_stat(next_board)
+            LOGGER.info(
+                f'height[{height}] holes[{holes}] next_height[{next_height}] next_holes[{next_holes}] cur_height[{cur_height}]'
+            )
+            reward = 1 * (height - next_height) + 0.5 * (
+                holes - next_holes) - 0.2 * cur_height
+            height = next_height
+            holes = next_holes
+            return reward
 
         def _wait_ui():
             if self._speed > 0:
                 pygame.time.wait(1000 // self._speed // 1)
                 self._update_ui()
 
+        _wait_ui()
         while run:
             if self._speed > 0:
                 quit = False
@@ -141,44 +159,45 @@ class Game(object):
                     break
 
             if random.uniform(0, 1) < epsilon:
-                action = random.randint(0, 4)
+                action = random.randint(0, 39)
+                # action = int(input('Action > '))
                 LOGGER.debug(f'random action[{action}]')
             else:
                 action = agent.predict(cur_state)
-                LOGGER.debug(f'predict action[{action}]')
+                LOGGER.info(f'predict action[{action}]')
 
-            if action == 4:
-                ok = True
-            else:
-                ok = self._handle_move(Key(action + 1))
-            # rotate = action // 10
-            # for i in range(rotate):
-            #     self._rotate()
-            #     _wait_ui()
-            #
-            # move = int(action % 10 - self._width / 2)
-            # for i in range(abs(move)):
-            #     self._move_h(1 if move > 0 else -1)
-            #     _wait_ui()
-            #
-            # while self._move_down():
-            #     _wait_ui()
-            _wait_ui()
+            rotate = action // 10
+            for i in range(rotate):
+                self._rotate()
+                _wait_ui()
 
-            _train(action, run, 1 if ok else 0)
+            move = int(action % 10 - self._width / 2)
+            for i in range(abs(move)):
+                self._move_h(1 if move > 0 else -1)
+                _wait_ui()
+
+            while self._move_down():
+                _wait_ui()
 
             score = self._score
-            if not self._move_down():
-                if not self._freeze():
-                    run = False
-            _train(Key.DOWN.value, run, self._score - score if run else -100)
+            cur_height = self._cur_pos[1] + self._max_y()
+            if not self._freeze():
+                run = False
+
+            reward = _calc_reward(cur_height, self._board)
+            score = self._score - score
+            if score > 0:
+                reward = score * 2 + 4
+            else:
+                reward += score + 4 if run else -100
+            _train(action, run, reward)
 
             _wait_ui()
         if self._speed > 0:
             pygame.quit()
         agent.replay_memory()
-        LOGGER.info(f'{self._board}')
-        return reward_acc
+        LOGGER.info(self._board)
+        return round(reward_acc, 1), train_size
 
     def _handle_move(self, key):
         # print(key)
@@ -259,7 +278,7 @@ class Game(object):
         return False
 
     def _move_down(self) -> bool:
-        if self._cur_pos[1] + self._min_y() > 1 and not self._will_collide(
+        if self._cur_pos[1] + self._min_y() > 0 and not self._will_collide(
                 self._cur, [self._cur_pos[0], self._cur_pos[1] - 1]):
             self._cur_pos[1] -= 1
             return True
@@ -308,7 +327,7 @@ class Game(object):
         pygame.display.flip()
 
     def _rect(self, x, y):
-        rect = pygame.Rect(x * _RECT_LEN, (self._height - y) * _RECT_LEN,
+        rect = pygame.Rect(x * _RECT_LEN, (self._height - y - 1) * _RECT_LEN,
                            _RECT_LEN, _RECT_LEN)
         return rect
 
@@ -318,9 +337,6 @@ class Game(object):
         self._cur = Tetrimino.gen().points()
         if self._max_y() + self._cur_pos[1] >= self._height:
             self._cur_pos[1] = self._height - 1 - self._max_y()
-        # print(f'gen_next')
-        # print(f'{self._cur_pos}')
-        # print(f'{self._cur}')
 
     def _get_state(self):
         df = self._board.copy()
@@ -330,3 +346,12 @@ class Game(object):
         LOGGER.debug(self._cur)
         LOGGER.debug(df.shape)
         return df.to_numpy()
+
+    @classmethod
+    def _board_stat(cls, board):
+        df = pd.DataFrame(columns=board.columns.copy())
+        df.loc['ones'] = board.sum()
+        df.loc['height'] = board.apply(lambda s: 1 + s[s == 1].index.max())
+        df.loc['holes'] = df.loc['height'] - df.loc['ones']
+        df = df.fillna(0)
+        return df.loc['height'].max(), df.loc['holes'].sum()
