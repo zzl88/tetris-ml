@@ -39,7 +39,7 @@ class Agent(torch.nn.Module):
             nn.Conv2d(64, 128, kernel_size=4, stride=2), nn.ReLU())
         self._layer3 = nn.Sequential(
             nn.Conv2d(128, 64, kernel_size=3, stride=1), nn.ReLU())
-        self._layer4 = nn.Sequential(nn.Linear(384, 512), nn.ReLU())
+        self._layer4 = nn.Sequential(nn.Linear(2304, 512), nn.ReLU())
         self._layer5 = nn.Linear(512, output_size)
 
     def forward(self, x):

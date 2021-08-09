@@ -1,4 +1,3 @@
-import datetime
 import logging
 
 import numpy as np
@@ -137,8 +136,8 @@ class Game(object):
             LOGGER.info(
                 f'height[{height}] holes[{holes}] next_height[{next_height}] next_holes[{next_holes}] cur_height[{cur_height}]'
             )
-            reward = 1 * (height - next_height) + 0.5 * (
-                holes - next_holes) - 0.2 * cur_height
+            reward = 1.5 * (height - next_height) + 0.8 * (
+                holes - next_holes) - 0.4 * cur_height
             height = next_height
             holes = next_holes
             return reward
@@ -340,8 +339,9 @@ class Game(object):
 
     def _get_state(self):
         df = self._board.copy()
+        df[[10, 11, 12, 13, 14, 15, 16, 17, 18, 19]] = 0
         for r in self._cur:
-            df.at[r[1] + self._cur_pos[1], r[0] + self._cur_pos[0]] = 1
+            df.at[r[1] + self._cur_pos[1], r[0] + self._cur_pos[0] + 10] = 1
         LOGGER.debug(self._cur_pos)
         LOGGER.debug(self._cur)
         LOGGER.debug(df.shape)
